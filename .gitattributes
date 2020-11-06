@@ -1,2 +1,8 @@
-# Auto detect text files and perform LF normalization
-* text=auto
+*.dll filter=lfs diff=lfs merge=lfs -text
+*.DLL filter=lfs diff=lfs merge=lfs -text
+*.exe_ filter=lfs diff=lfs merge=lfs -text
+*.EXE_  filter=lfs diff=lfs merge=lfs -text
+*.exe filter=lfs diff=lfs merge=lfs -text
+*.EXE  filter=lfs diff=lfs merge=lfs -text
+Bin/** filter=lfs diff=lfs merge=lfs -text
+Bins/** filter=lfs diff=lfs merge=lfs -text
