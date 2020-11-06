@@ -12,5 +12,10 @@ namespace System1C.AddIn
         {
             return parameter + 100;
         }
+
+        public string Test()
+        {
+            return "вороде работает";
+        }
     }
 }

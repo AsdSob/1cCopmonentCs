@@ -9,5 +9,7 @@ namespace System1C.AddIn
     {
         [RussianName("ћетодЌа–усскомязыке")]
         int Procedure(int parameter);
+
+        string Test();
     }
 }
