@@ -1,4 +1,5 @@
 using System.Runtime.InteropServices;
+using Impinj.OctaneSdk;
 
 namespace System1C.AddIn
 {
@@ -11,5 +12,16 @@ namespace System1C.AddIn
         int Procedure(int parameter);
 
         string Test();
+        void TestEvent();
+
+        void Connect(string ip);
+
+        void Disconnect();
+
+        bool IsConnected();
+
+        void StartRead();
+
+        void StopRead();
     }
 }
