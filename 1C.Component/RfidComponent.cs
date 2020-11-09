@@ -20,7 +20,13 @@ namespace _1C.Component
         private StringBuilder _lastError;
         private ImpinjReader _reader;
         private ConcurrentDictionary<string, int> _tags;
+        private Settings _setting;
 
+        public Settings Setting
+        {
+            get { return _setting;}
+            set { _setting = value; }
+        }
         public ConcurrentDictionary<string, int> Tags
         {
             get { return _tags; }
@@ -170,36 +176,17 @@ namespace _1C.Component
 
         #region Reader methods
 
-        public void ConnectReader()
+        private void ConnectReader()
         {
-            if(Reader == null) return;
             Disconnect();
 
             try
             {
                 Reader.Connect();
-
-                Settings settings = Reader.QueryDefaultSettings();
-                settings.Report.IncludeAntennaPortNumber = true;
-                settings.Report.IncludePhaseAngle = true;
-                settings.Report.IncludeChannel = true;
-                settings.Report.IncludeDopplerFrequency = true;
-                settings.Report.IncludeFastId = true;
-                settings.Report.IncludeFirstSeenTime = true;
-                settings.Report.IncludeLastSeenTime = true;
-                settings.Report.IncludePeakRssi = true;
-                settings.Report.IncludeSeenCount = true;
-                settings.Report.IncludePcBits = true;
-
-                settings.ReaderMode = ReaderMode.MaxThroughput; //.AutoSetDenseReader;
-                settings.SearchMode = SearchMode.DualTarget; //.DualTarget;
-                settings.Session = 1;
-                settings.TagPopulationEstimate = Convert.ToUInt16(200);
-
-                SetAntennaSettings(settings);
-                settings.Report.Mode = ReportMode.Individual;
-
-                Reader.ApplySettings(settings);
+                Setting = Reader.QueryDefaultSettings();
+                SetReaderSettings();
+                SetAntennaSettings();
+                Reader.ApplySettings(Setting);
             }
             catch (OctaneSdkException ee)
             {
@@ -212,8 +199,41 @@ namespace _1C.Component
             }
         }
 
-        private void SetAntennaSettings(Settings settings)
+        private void SetReaderSettings()
         {
+            var settings = Setting;
+            try
+            {
+                settings.Report.IncludeAntennaPortNumber = true;
+                settings.Report.IncludePhaseAngle = true;
+                settings.Report.IncludeChannel = true;
+                settings.Report.IncludeDopplerFrequency = true;
+                settings.Report.IncludeFastId = true;
+                settings.Report.IncludeFirstSeenTime = true;
+                settings.Report.IncludeLastSeenTime = true;
+                settings.Report.IncludePeakRssi = true;
+                settings.Report.IncludeSeenCount = true;
+                settings.Report.IncludePcBits = true;
+                settings.ReaderMode = ReaderMode.MaxThroughput; //.AutoSetDenseReader;
+                settings.SearchMode = SearchMode.DualTarget; //.DualTarget;
+                settings.Session = 1;
+                settings.TagPopulationEstimate = Convert.ToUInt16(200);
+                settings.Report.Mode = ReportMode.Individual;
+            }
+            catch (OctaneSdkException ee)
+            {
+                Console.WriteLine("Octane SDK exception: Reader " + ee.Message, "error");
+            }
+            catch (Exception ee)
+            {
+                // Handle other .NET errors.
+                Console.WriteLine("Exception : Reader " + ee.Message, "error");
+            }
+        }
+
+        private void SetAntennaSettings()
+        {
+            var settings = Setting;
             settings.Antennas.DisableAll();
 
             for (int i = 1; i <= settings.Antennas.Length; i++)
@@ -228,13 +248,10 @@ namespace _1C.Component
             }
         }
 
-        public void Connect(string ip)
+        public void SetReader(string ip)
         {
-            if(string.IsNullOrWhiteSpace(ip)) return;
-
+            if (string.IsNullOrWhiteSpace(ip)) return;
             Reader = new ImpinjReader(ip, "1");
-
-            ConnectReader();
 
             var x = 0;
             AddIn.AsyncEvent.CleanBuffer();
@@ -244,6 +261,20 @@ namespace _1C.Component
             {
                 AddIn.AsyncEvent.SetEventBufferDepth(100000);
             }
+        }
+
+        public void Connect()
+        {
+           if(Reader == null) return;
+
+           if (IsConnected())
+           {
+               Reader.Stop();
+           }
+           else
+           {
+               ConnectReader();
+           }
         }
 
         public void Disconnect()
@@ -262,12 +293,7 @@ namespace _1C.Component
         public void StartRead()
         {
             if (Reader == null) return;
-
-            if (!IsConnected())
-            {
-                ConnectReader();
-            } 
-            Reader.Stop();
+            Connect();
 
             Tags = new ConcurrentDictionary<string, int>();
             Reader.TagsReported += DisplayTag;
@@ -276,14 +302,15 @@ namespace _1C.Component
 
         public void StopRead()
         {
-            if (Reader == null) return;
+            if (Reader == null || !IsConnected()) return;
 
-            if(!IsConnected()) return;
-            
-            Reader.Stop();
             Reader.TagsReported -= DisplayTag;
             Disconnect();
-            AddIn.AsyncEvent.CleanBuffer();
+        }
+
+        public int GetTagsCount()
+        {
+            return Tags.Count;
         }
 
         private void DisplayTag(ImpinjReader reader, TagReport report)

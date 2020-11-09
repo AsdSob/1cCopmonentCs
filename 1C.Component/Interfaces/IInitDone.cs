@@ -11,7 +11,8 @@ namespace _1C.Component.Interfaces
         void setMemManager(ref object mem);
 
 
-        void Connect(string ip);
+        void Connect();
+        void SetReader(string ip);
 
         void Disconnect();
 
@@ -20,5 +21,9 @@ namespace _1C.Component.Interfaces
         void StartRead();
 
         void StopRead();
+
+        int GetTagsCount();
+
+
     }
 }

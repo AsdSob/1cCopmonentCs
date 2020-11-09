@@ -1,5 +1,0 @@
-использовать сборку https://github.com/SergeyMironchuk/1CAddin для ПодключитьВнешнююКомпоненту("AddIn.1C_Component");
-после компиляции зарегистрировать через regasm.
-
-добавить подпись project=>properties=>Singning=> Sign the assembly, создать подпись и добавить в AssemblyInfo проекта [assembly: ComVisible(true)] и [assembly: AssemblyKeyFile("TestComCalc.snk")]
-подпись нужна для создание переменной ExtComponent= Новый COMОбъект("AddIn.1C_Component");
