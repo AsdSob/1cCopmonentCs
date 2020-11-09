@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Concurrent;
 using System.Runtime.InteropServices;
 using System.Text;
 using _1C.Component.Interfaces;
@@ -12,14 +13,20 @@ namespace _1C.Component
     {
         public RfidComponent() { }
 
-
         #region Properties
 
         private const string addInName = "RfidComponent";
 
         private StringBuilder _lastError;
         private ImpinjReader _reader;
+        private ConcurrentDictionary<string, int> _tags;
 
+        public ConcurrentDictionary<string, int> Tags
+        {
+            get { return _tags; }
+
+            set { _tags = value; }
+        }
         public StringBuilder LastError
         {
             get { return _lastError; }
@@ -148,20 +155,14 @@ namespace _1C.Component
 
         public string Test()
         {
-            var x = 4;
-            AddIn.AsyncEvent.SetEventBufferDepth(1000);
-
-            AddIn.AsyncEvent.GetEventBufferDepth(ref x);
-
-            Reader = new ImpinjReader("192.168.1.69", "1");
-            return "buffer = " + x;
+            return "Компонента подключена успешно";
         }
 
         public void TestEvent()
         {
-            for (int i = 0; i < 500; i++)
+            for (int i = 0; i < 50; i++)
             {
-                AddIn.AsyncEvent.ExternalEvent("Asterisk.AddIn", "AAA", i.ToString());
+                AddIn.AsyncEvent.ExternalEvent("Test", "AAA", i.ToString());
             }
         }
 
@@ -171,12 +172,8 @@ namespace _1C.Component
 
         public void ConnectReader()
         {
-            //readers.Add(new ImpinjReader(textBox1.Text, "Reader #1"));
-
-            if (Reader.IsConnected)
-            {
-                Reader.Disconnect();
-            }
+            if(Reader == null) return;
+            Disconnect();
 
             try
             {
@@ -206,37 +203,13 @@ namespace _1C.Component
             }
             catch (OctaneSdkException ee)
             {
-                Console.WriteLine("Octane SDK exception: Reader #1" + ee.Message, "error");
+                Console.WriteLine("Octane SDK exception: Reader " + ee.Message, "error");
             }
             catch (Exception ee)
             {
                 // Handle other .NET errors.
-                Console.WriteLine("Exception : Reader #1" + ee.Message, "error");
+                Console.WriteLine("Exception : Reader " + ee.Message, "error");
             }
-        }
-
-        private void SetSettings(Settings settings)
-        {
-            settings.Report.IncludeAntennaPortNumber = true;
-            settings.Report.IncludePhaseAngle = true;
-            settings.Report.IncludeChannel = true;
-            settings.Report.IncludeDopplerFrequency = true;
-            settings.Report.IncludeFastId = true;
-            settings.Report.IncludeFirstSeenTime = true;
-            settings.Report.IncludeLastSeenTime = true;
-            settings.Report.IncludePeakRssi = true;
-            settings.Report.IncludeSeenCount = true;
-            settings.Report.IncludePcBits = true;
-            settings.Report.IncludeSeenCount = true;
-
-            //ReaderMode.AutoSetDenseReaderDeepScan | Rx = -70 | Tx = 15/20
-            //ReaderMode.MaxThrouput | Rx = -80 | Tx = 15
-
-            settings.ReaderMode = ReaderMode.AutoSetDenseReaderDeepScan;//.AutoSetDenseReader;
-            settings.SearchMode = SearchMode.DualTarget;//.DualTarget;
-            settings.Session = 1;
-            settings.TagPopulationEstimate = 200;
-            settings.Report.Mode = ReportMode.Individual;
         }
 
         private void SetAntennaSettings(Settings settings)
@@ -248,20 +221,29 @@ namespace _1C.Component
                 var antenna = settings.Antennas.GetAntenna((ushort)i);
 
                 antenna.IsEnabled = true;
-                antenna.TxPowerInDbm = Convert.ToDouble(15);
-                antenna.RxSensitivityInDbm = Convert.ToDouble(-80);
+                //antenna.TxPowerInDbm = Convert.ToDouble(15);
+                //antenna.RxSensitivityInDbm = Convert.ToDouble(-80);
+                antenna.MaxRxSensitivity = true;
+                antenna.MaxTxPower = true;
             }
         }
 
         public void Connect(string ip)
         {
-            if (Reader != null && Reader.IsConnected)
-            {
-                Reader.Stop();
-                Reader.Disconnect();
-            }
+            if(string.IsNullOrWhiteSpace(ip)) return;
 
             Reader = new ImpinjReader(ip, "1");
+
+            ConnectReader();
+
+            var x = 0;
+            AddIn.AsyncEvent.CleanBuffer();
+            AddIn.AsyncEvent.GetEventBufferDepth(ref x);
+
+            if (x < 100000)
+            {
+                AddIn.AsyncEvent.SetEventBufferDepth(100000);
+            }
         }
 
         public void Disconnect()
@@ -281,11 +263,13 @@ namespace _1C.Component
         {
             if (Reader == null) return;
 
-            ConnectReader();
-
-            if (!Reader.IsConnected) return;
+            if (!IsConnected())
+            {
+                ConnectReader();
+            } 
             Reader.Stop();
 
+            Tags = new ConcurrentDictionary<string, int>();
             Reader.TagsReported += DisplayTag;
             Reader.Start();
         }
@@ -294,18 +278,30 @@ namespace _1C.Component
         {
             if (Reader == null) return;
 
-            if(!Reader.IsConnected) return;
+            if(!IsConnected()) return;
             
             Reader.Stop();
             Reader.TagsReported -= DisplayTag;
             Disconnect();
+            AddIn.AsyncEvent.CleanBuffer();
         }
 
         private void DisplayTag(ImpinjReader reader, TagReport report)
         {
             foreach (Tag tag in report)
             {
-                //TODO: добавить метод AsyncEvent.ExternalEvent
+                if (!Tags.TryGetValue(tag.Epc.ToString(), out int val))
+                {
+                    if (Tags.TryAdd(tag.Epc.ToString(), tag.AntennaPortNumber))
+                    {
+                        AddIn.AsyncEvent.ExternalEvent(addInName, "TagRead", $"{tag.Epc.ToString()} : {tag.AntennaPortNumber}");
+                    }
+                }
+                else
+                {
+                    Tags.TryUpdate(tag.Epc.ToString(), tag.AntennaPortNumber, val);
+                }
+
             }
         }
 
